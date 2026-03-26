@@ -29,7 +29,8 @@ export default function ListingsPage() {
     if (filters.minBeds) params.set("minBeds", filters.minBeds);
 
     try {
-      const res = await fetch(`/api/listings?${params.toString()}`);
+      const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+      const res = await fetch(`${base}/listings?${params.toString()}`);
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
       setListings(data.listings ?? []);

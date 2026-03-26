@@ -131,7 +131,8 @@ function CompsPanel({ listing }: { listing: Listing }) {
     if (!listing.address) return;
     setLoading(true);
     setError(null);
-    fetch(`/api/comps?address=${encodeURIComponent(listing.address)}`)
+    const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    fetch(`${base}/comps?address=${encodeURIComponent(listing.address)}`)
       .then(r => { if (!r.ok) throw new Error(`API error ${r.status}`); return r.json(); })
       .then(data => { setComps(data.comps ?? []); setMedianPrice(data.median_price ?? null); })
       .catch(e => setError(e.message))
@@ -244,7 +245,8 @@ export default function App() {
       if (filters.maxPrice) params.set("maxPrice", filters.maxPrice);
       if (filters.minBeds) params.set("minBeds", filters.minBeds);
 
-      const url = `/api/listings?${params}`;
+      const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+      const url = `${base}/listings?${params}`;
       console.log("[listings] fetching:", url);
       const res = await fetch(url);
       if (!res.ok) throw new Error(`API error ${res.status}`);
