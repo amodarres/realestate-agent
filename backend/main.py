@@ -1,22 +1,31 @@
 import os
+import json
 import statistics
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional
+from typing import Optional, Any
 from dotenv import load_dotenv
 import httpx
+import anthropic
+from pydantic import BaseModel
 from models import Listing, ListingsResponse, Comp, CompsResponse
 
 load_dotenv()
 
 RENTCAST_API_KEY = os.getenv("RENTCAST_API_KEY")
 RENTCAST_BASE_URL = "https://api.rentcast.io/v1"
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
-# Verify key on startup
+# Verify keys on startup
 if RENTCAST_API_KEY:
     print(f"[startup] RENTCAST_API_KEY loaded ({len(RENTCAST_API_KEY)} chars, ends ...{RENTCAST_API_KEY[-4:]})")
 else:
     print("[startup] WARNING: RENTCAST_API_KEY is not set")
+
+if ANTHROPIC_API_KEY:
+    print(f"[startup] ANTHROPIC_API_KEY loaded ({len(ANTHROPIC_API_KEY)} chars, ends ...{ANTHROPIC_API_KEY[-4:]})")
+else:
+    print("[startup] WARNING: ANTHROPIC_API_KEY is not set")
 
 app = FastAPI(title="Real Estate Agent API", version="0.1.0")
 
@@ -153,6 +162,34 @@ async def get_comps(
     median_price = int(statistics.median(prices)) if prices else None
 
     return CompsResponse(address=address, comps=comps, median_price=median_price)
+
+
+class AskRequest(BaseModel):
+    question: str
+    listings: list[dict[str, Any]] = []
+
+
+@app.post("/ask")
+async def ask(req: AskRequest):
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY is not configured")
+
+    listings_context = json.dumps(req.listings, indent=2) if req.listings else "No listings loaded yet."
+
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        system=(
+            "You are a knowledgeable real estate assistant helping a buyer browse property listings. "
+            "Answer questions concisely and helpfully based on the listings provided. "
+            "When referencing specific properties, use their address. "
+            "If the answer isn't in the listing data, say so honestly.\n\n"
+            f"Current listings:\n{listings_context}"
+        ),
+        messages=[{"role": "user", "content": req.question}],
+    )
+    return {"answer": message.content[0].text}
 
 
 @app.get("/health")
